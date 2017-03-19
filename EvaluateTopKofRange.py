@@ -37,7 +37,7 @@ model.load_weights(model_file)
 
 # Evaluate performance
 print("K\tHR\tNDCG")
-for topK in xrange(1, 10):
+for topK in range(1, 10):
     (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, 1)
     hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
     print("%d\t%.4f\t%.4f" %(topK, hr, ndcg))
