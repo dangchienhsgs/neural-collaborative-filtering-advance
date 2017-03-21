@@ -167,7 +167,7 @@ if __name__ == '__main__':
             if hr > best_hr:
                 best_hr = hr
                 if hr > 0.6:
-                    model.save_weights('Pretrain/%s_GMF_%d_neg_%d_hr_%.4f_ndcg_%.4f.h5' % (
+                    model.save_weights('pretrain/%s_GMF_%d_neg_%d_hr_%.4f_ndcg_%.4f.h5' % (
                         dataset_name, num_factors, num_negatives, hr, ndcg), overwrite=True)
             if ndcg > best_ndcg:
                 best_ndcg = ndcg
