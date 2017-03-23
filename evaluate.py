@@ -8,17 +8,24 @@ Evaluate the performance of Top-K recommendation:
 @author: hexiangnan
 '''
 import math
-import heapq # for retrieval topK
+import heapq  # for retrieval topK
 import multiprocessing
 import numpy as np
+from analysis.read_movie import read_vectors
+from analysis.read_movie import read_dictionaries
+
 from time import time
-#from numba import jit, autojit
+
+# from numba import jit, autojit
 
 # Global variables that are shared across processes
 _model = None
 _testRatings = None
 _testNegatives = None
 _K = None
+
+dictionary = read_dictionaries()
+
 
 def evaluate_model(model, testRatings, testNegatives, K, num_thread):
     """
@@ -33,9 +40,9 @@ def evaluate_model(model, testRatings, testNegatives, K, num_thread):
     _testRatings = testRatings
     _testNegatives = testNegatives
     _K = K
-    
-    hits, ndcgs = [],[]
-    if(num_thread > 1): # Multi-thread
+
+    hits, ndcgs = [], []
+    if (num_thread > 1):  # Multi-thread
         pool = multiprocessing.Pool(processes=num_thread)
         res = pool.map(eval_one_rating, range(len(_testRatings)))
         pool.close()
@@ -45,10 +52,11 @@ def evaluate_model(model, testRatings, testNegatives, K, num_thread):
         return (hits, ndcgs)
     # Single thread
     for idx in range(len(_testRatings)):
-        (hr,ndcg) = eval_one_rating(idx)
+        (hr, ndcg) = eval_one_rating(idx)
         hits.append(hr)
-        ndcgs.append(ndcg)      
+        ndcgs.append(ndcg)
     return (hits, ndcgs)
+
 
 def eval_one_rating(idx):
     rating = _testRatings[idx]
@@ -58,18 +66,24 @@ def eval_one_rating(idx):
     items.append(gtItem)
     # Get prediction scores
     map_item_score = {}
-    users = np.full(len(items), u, dtype = 'int32')
-    predictions = _model.predict([users, np.array(items)], 
+    users = np.full(len(items), u, dtype='int32')
+
+    # predict
+    predictions = _model.predict([users, np.array(items), np.random.randint(0, len(dictionary), len(users))],
                                  batch_size=100, verbose=0)
+
+    # take the first result, is the result of predict user-item
+    predictions = predictions[0]
     for i in range(len(items)):
         item = items[i]
         map_item_score[item] = predictions[i]
-    
+
     # Evaluate top rank list
     ranklist = heapq.nlargest(_K, map_item_score, key=map_item_score.get)
     hr = getHitRatio(ranklist, gtItem)
     ndcg = getNDCG(ranklist, gtItem)
     return (hr, ndcg)
+
 
 def getHitRatio(ranklist, gtItem):
     for item in ranklist:
@@ -77,9 +91,10 @@ def getHitRatio(ranklist, gtItem):
             return 1
     return 0
 
+
 def getNDCG(ranklist, gtItem):
     for i in range(len(ranklist)):
         item = ranklist[i]
         if item == gtItem:
-            return math.log(2) / math.log(i+2)
+            return math.log(2) / math.log(i + 2)
     return 0

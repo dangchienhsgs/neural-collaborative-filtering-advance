@@ -21,42 +21,70 @@ import multiprocessing as mp
 import sys
 import math
 
+from analysis.create_vector_item import read_dictionaries
+from analysis.read_movie import read_vectors
+
 
 # def init_normal(shape, name=None):
 #     return initializations.normal(shape, scale=0.01, name=name)
 
 
-def get_model(num_users, num_items, latent_dim, regs=[0, 0]):
+def get_model(num_users, num_items, num_words, latent_dim, regs=[0, 0]):
+    """
+    Input of this model: id of user, id of item id of word
+    :param num_users:
+    :param num_items:
+    :param num_words:
+    :param latent_dim:
+    :param regs:
+    :return:
+    """
+
     assert len(regs) == 2  # regularization for user and item, respectively
+
+    print('Number of words %d' % num_words)
     # Input variables
     user_input = Input(shape=(1,), dtype='int32', name='user_input')
     item_input = Input(shape=(1,), dtype='int32', name='item_input')
+    word_input = Input(shape=(1,), dtype='int32', name='word_input')
 
     MF_Embedding_User = Embedding(input_dim=num_users, output_dim=latent_dim, name='user_embedding',
                                   embeddings_initializer='uniform', activity_regularizer=l2(regs[0]), input_length=1)
     MF_Embedding_Item = Embedding(input_dim=num_items, output_dim=latent_dim, name='item_embedding',
                                   embeddings_initializer='uniform', activity_regularizer=l2(regs[0]), input_length=1)
+    MF_Embedding_Word = Embedding(input_dim=num_words, output_dim=latent_dim, name='word_embedding',
+                                  embeddings_initializer='uniform', activity_regularizer=l2(regs[0]), input_length=1)
 
     # Crucial to flatten an embedding vector!
     user_latent = Flatten()(MF_Embedding_User(user_input))
     item_latent = Flatten()(MF_Embedding_Item(item_input))
+    word_latent = Flatten()(MF_Embedding_Word(word_input))
 
     # Element-wise product of user and item embeddings 
     predict_vector = merge([user_latent, item_latent], mode='mul')
+    language_vector = merge([item_latent, word_latent], mode='mul')
 
     # Final prediction layer
     # prediction = Lambda(lambda x: K.sigmoid(K.sum(x)), output_shape=(1,))(predict_vector)
     prediction = Dense(1, activation='sigmoid', init='lecun_uniform', name='prediction')(predict_vector)
+    language_value = Dense(1, activation='sigmoid', init='lecun_uniform', name='language_value')(language_vector)
 
-    model = Model(input=[user_input, item_input],
-                  output=prediction)
+    model = Model(input=[user_input, item_input, word_input],
+                  output=[prediction, language_value])
 
     return model
 
 
 def get_train_instances(train, num_negatives, weight_negatives, user_weights):
+    """
+    :param train:
+    :param num_negatives:
+    :param weight_negatives:
+    :param user_weights:
+    :return:
+    """
+
     user_input, item_input, labels, weights = [], [], [], []
-    num_users = train.shape[0]
     for (u, i) in train.keys():
         # positive instance
         user_input.append(u)
@@ -88,8 +116,10 @@ if __name__ == '__main__':
     epochs = 100
     batch_size = 256
     verbose = 1
+    dictionary = read_dictionaries()
+    dict_size = len(dictionary)
 
-    if (len(sys.argv) > 3):
+    if len(sys.argv) > 3:
         dataset_name = sys.argv[1]
         num_factors = int(sys.argv[2])
         regs = eval(sys.argv[3])
@@ -120,7 +150,11 @@ if __name__ == '__main__':
           % (time() - t1, num_users, num_items, train.nnz, len(testRatings)))
 
     # Build model
-    model = get_model(num_users, num_items, num_factors, regs)
+    print("Create model")
+    model = get_model(num_users, num_items, dict_size, num_factors, regs)
+    print("Finish create model")
+
+    # ---------------- compile model ----------------------
     if learner.lower() == "adagrad":
         model.compile(optimizer=Adagrad(lr=learning_rate), loss='binary_crossentropy')
     elif learner.lower() == "rmsprop":
@@ -130,6 +164,7 @@ if __name__ == '__main__':
     else:
         model.compile(optimizer=SGD(lr=learning_rate), loss='binary_crossentropy')
     # print(model.summary())
+    # -----------------------------------------------------
 
     # Init performance
     (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
@@ -143,16 +178,42 @@ if __name__ == '__main__':
     # Train model
     loss_pre = sys.float_info.max
     best_hr, best_ndcg = 0, 0
+
+    # -------------------
+    # read vector of item
+    items_vectors = read_vectors()
+    # -------------------
     for epoch in range(epochs):
         t1 = time()
         # Generate training instances
         user_input, item_input, labels, weights = get_train_instances(train, num_negatives, weight_negatives,
                                                                       user_weights)
+        # get item vector
 
-        # Training
-        hist = model.fit([np.array(user_input), np.array(item_input)],  # input
-                         np.array(labels),  # labels
-                         batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
+        users = []
+
+        # get item vector
+
+        users_train = []
+        items_train = []
+        words_train = []
+        item_vector_value = []
+
+        for i in range(len(user_input)):
+            user = user_input[i]
+            item = item_input[i]
+
+            item_vec = items_vectors[item]
+            for word in item_vec.keys():
+                users_train.append(user_input)
+                items_train.append(item_input)
+                words_train.append(word)
+
+                item_vector_value.append(items_vectors[item, word])
+
+        hist = model.fit([np.array(users_train), np.array(items_train), np.array(words_train)],  # input
+                         [np.array(labels), np.array(item_vector_value)],  # labels
+                         batch_size=batch_size, nb_epoch=10, verbose=0, shuffle=True)
         t2 = time()
 
         # Evaluation
