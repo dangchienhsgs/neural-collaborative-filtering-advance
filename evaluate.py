@@ -38,7 +38,6 @@ def evaluate_model(model, testRatings, testNegatives, K, num_thread):
     global _K
     _model = model
 
-    print("Fuck ", _model)
     _testRatings = testRatings
     _testNegatives = testNegatives
     _K = K

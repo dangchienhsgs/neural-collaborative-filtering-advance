@@ -6,6 +6,7 @@ Created on Aug 9, 2016
 import numpy as np
 import theano.tensor as T
 import keras
+import scipy
 from keras import backend as K
 from keras import initializers
 from keras.models import Sequential, Model, load_model, save_model
@@ -20,6 +21,7 @@ from time import time
 import multiprocessing as mp
 import sys
 import math
+from scipy.sparse import dok_matrix
 
 from analysis.create_vector_item import read_dictionaries
 from analysis.read_movie import read_vectors
@@ -195,9 +197,6 @@ if __name__ == '__main__':
     # create data
     user_input, item_input, labels, weights = get_train_instances(train, num_negatives, weight_negatives,
                                                                   user_weights)
-    item_vectors = {
-
-    }
 
     print(len(user_input))
     # get item vector
@@ -210,8 +209,16 @@ if __name__ == '__main__':
     print("Create data")
 
     cache_item = {}
+
+    # for not crawl item
+    item_vector_empty = dok_matrix((1, items_vectors.shape[1]))
+    item_vector_empty[0, 0] = 1
+
     for item in range(0, items_vectors.shape[0]):
-        item_vec = items_vectors[item]
+        if item in items_vectors.keys():
+            item_vec = items_vectors[item]
+        else:
+            item_vec = item_vector_empty
 
         t1 = item_vec.nonzero()[1]
         t2 = item_vec.values()
@@ -222,7 +229,10 @@ if __name__ == '__main__':
         user = user_input[i]
         item = item_input[i]
 
-        item_vec = items_vectors[item]
+        if item in items_vectors.keys():
+            item_vec = items_vectors[item]
+        else:
+            item_vec = item_vector_empty
 
         size = item_vec.nonzero()[1]
         users_train.extend([user] * size)
@@ -242,29 +252,27 @@ if __name__ == '__main__':
         t1 = time()
         # Generate training instances
         print("Start fit data")
-        print("Before ", model.get_layer('user_embedding').get_weights())
 
+        print(len(users_train))
         hist = model.fit([np.array(users_train), np.array(items_train), np.array(words_train)],  # input
                          [np.array(labels_train), np.array(item_vector_value)],  # labels
                          batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
+
         print("Finish fit data")
-        print("After ", model.get_layer('user_embedding').get_weights())
 
         t2 = time()
 
         # Evaluation
         if epoch % verbose == 0:
             (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
-            hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), hist.history['loss'][0]
+            hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
 
             mf_embedding_norm = np.linalg.norm(model.get_layer('user_embedding').get_weights()) + np.linalg.norm(
                 model.get_layer('item_embedding').get_weights())
 
-            print(model.get_layer('user_embedding').get_weights())
-
             p_norm = np.linalg.norm(model.get_layer('prediction').get_weights()[0])
-            print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = %.4f [%.1f s] MF_norm=%.1f, p_norm=%.2f'
-                  % (epoch, t2 - t1, hr, ndcg, loss, time() - t2, mf_embedding_norm, p_norm))
+            print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = [%.1f s] MF_norm=%.1f, p_norm=%.2f'
+                  % (epoch, t2 - t1, hr, ndcg, time() - t2, mf_embedding_norm, p_norm))
             if hr > best_hr:
                 best_hr = hr
                 if hr > 0.6:
