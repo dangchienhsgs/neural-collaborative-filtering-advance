@@ -72,8 +72,8 @@ def get_model(num_users, num_items, num_words, latent_dim, regs=[0, 0]):
     prediction = Dense(1, activation='sigmoid', init='lecun_uniform', name='prediction')(predict_vector)
     language_value = Dense(1, activation='sigmoid', init='lecun_uniform', name='language_value')(language_vector)
 
-    model = Model(input=[user_input, item_input, word_input],
-                  output=[prediction, language_value])
+    model = Model(inputs=[user_input, item_input, word_input],
+                  outputs=[prediction, language_value])
 
     return model
 
@@ -159,13 +159,13 @@ if __name__ == '__main__':
 
     # ---------------- compile model ----------------------
     if learner.lower() == "adagrad":
-        model.compile(optimizer=Adagrad(lr=learning_rate), loss='binary_crossentropy')
+        model.compile(optimizer=Adagrad(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
     elif learner.lower() == "rmsprop":
-        model.compile(optimizer=RMSprop(lr=learning_rate), loss='binary_crossentropy')
+        model.compile(optimizer=RMSprop(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
     elif learner.lower() == "adam":
-        model.compile(optimizer=Adam(lr=learning_rate), loss='binary_crossentropy')
+        model.compile(optimizer=Adam(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
     else:
-        model.compile(optimizer=SGD(lr=learning_rate), loss='binary_crossentropy')
+        model.compile(optimizer=SGD(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
     # print(model.summary())
     # -----------------------------------------------------
 
@@ -244,12 +244,10 @@ if __name__ == '__main__':
         print("Start fit data")
         print("Before ", model.get_layer('user_embedding').get_weights())
 
-        print(model.summary())
         hist = model.fit([np.array(users_train), np.array(items_train), np.array(words_train)],  # input
                          [np.array(labels_train), np.array(item_vector_value)],  # labels
                          batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
         print("Finish fit data")
-        print(model.summary())
         print("After ", model.get_layer('user_embedding').get_weights())
 
         t2 = time()
