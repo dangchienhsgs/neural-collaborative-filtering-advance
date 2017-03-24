@@ -7,7 +7,7 @@ import numpy as np
 import theano.tensor as T
 import keras
 from keras import backend as K
-# from keras import initializations
+from keras import initializers
 from keras.models import Sequential, Model, load_model, save_model
 from keras.layers.core import Dense, Lambda, Activation
 from keras.layers import Input, Dense, merge, Reshape, Merge, Flatten
@@ -25,8 +25,8 @@ from analysis.create_vector_item import read_dictionaries
 from analysis.read_movie import read_vectors
 
 
-# def init_normal(shape, name=None):
-#     return initializations.normal(shape, scale=0.01, name=name)
+def init_normal():
+    return initializers.RandomNormal(mean=0.0)
 
 
 def get_model(num_users, num_items, num_words, latent_dim, regs=[0, 0]):
@@ -49,11 +49,14 @@ def get_model(num_users, num_items, num_words, latent_dim, regs=[0, 0]):
     word_input = Input(shape=(1,), dtype='int32', name='word_input')
 
     MF_Embedding_User = Embedding(input_dim=num_users, output_dim=latent_dim, name='user_embedding',
-                                  embeddings_initializer='uniform', activity_regularizer=l2(regs[0]), input_length=1)
+                                  embeddings_initializer=init_normal(), activity_regularizer=l2(regs[0]),
+                                  input_length=1)
     MF_Embedding_Item = Embedding(input_dim=num_items, output_dim=latent_dim, name='item_embedding',
-                                  embeddings_initializer='uniform', activity_regularizer=l2(regs[0]), input_length=1)
+                                  embeddings_initializer=init_normal(), activity_regularizer=l2(regs[0]),
+                                  input_length=1)
     MF_Embedding_Word = Embedding(input_dim=num_words, output_dim=latent_dim, name='word_embedding',
-                                  embeddings_initializer='uniform', activity_regularizer=l2(regs[0]), input_length=1)
+                                  embeddings_initializer=init_normal(), activity_regularizer=l2(regs[0]),
+                                  input_length=1)
 
     # Crucial to flatten an embedding vector!
     user_latent = Flatten()(MF_Embedding_User(user_input))
@@ -169,9 +172,14 @@ if __name__ == '__main__':
     # Init performance
     (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
     hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
+
     mf_embedding_norm = np.linalg.norm(model.get_layer('user_embedding').get_weights()) + np.linalg.norm(
         model.get_layer('item_embedding').get_weights())
+
     p_norm = np.linalg.norm(model.get_layer('prediction').get_weights()[0])
+    print(model.get_layer('user_embedding').get_weights())
+    print(p_norm)
+
     print('Init: HR = %.4f, NDCG = %.4f\t MF_norm=%.1f, p_norm=%.2f' %
           (hr, ndcg, mf_embedding_norm, p_norm))
 
@@ -183,45 +191,79 @@ if __name__ == '__main__':
     # read vector of item
     items_vectors = read_vectors()
     # -------------------
+
+    # create data
+    user_input, item_input, labels, weights = get_train_instances(train, num_negatives, weight_negatives,
+                                                                  user_weights)
+    item_vectors = {
+
+    }
+
+    print(len(user_input))
+    # get item vector
+    users_train = []
+    items_train = []
+    words_train = []
+    labels_train = []
+    item_vector_value = []
+
+    print("Create data")
+
+    cache_item = {}
+    for item in range(0, items_vectors.shape[0]):
+        item_vec = items_vectors[item]
+
+        t1 = item_vec.nonzero()[1]
+        t2 = item_vec.values()
+
+        cache_item[item] = [item_vec.nonzero()[1], item_vec.values()]
+
+    for i in range(len(user_input)):
+        user = user_input[i]
+        item = item_input[i]
+
+        item_vec = items_vectors[item]
+
+        size = item_vec.nonzero()[1]
+        users_train.extend([user] * size)
+        items_train.extend([item] * size)
+        labels_train.extend(labels[i] * size)
+
+        t = cache_item[item]
+        words_train.extend(t[0])
+        item_vector_value.extend(t[1])
+
+        print(i, len(user_input), len(users_train), len(labels_train), len(items_train), len(words_train),
+              len(item_vector_value))
+
+    print("Data size ", len(user_input))
     for epoch in range(epochs):
+        print("Epoch %d" % epoch)
         t1 = time()
         # Generate training instances
-        user_input, item_input, labels, weights = get_train_instances(train, num_negatives, weight_negatives,
-                                                                      user_weights)
-        # get item vector
+        print("Start fit data")
+        print("Before ", model.get_layer('user_embedding').get_weights())
 
-        users = []
-
-        # get item vector
-
-        users_train = []
-        items_train = []
-        words_train = []
-        item_vector_value = []
-
-        for i in range(len(user_input)):
-            user = user_input[i]
-            item = item_input[i]
-
-            item_vec = items_vectors[item]
-            for word in item_vec.keys():
-                users_train.append(user_input)
-                items_train.append(item_input)
-                words_train.append(word)
-
-                item_vector_value.append(items_vectors[item, word])
-
+        print(model.summary())
         hist = model.fit([np.array(users_train), np.array(items_train), np.array(words_train)],  # input
-                         [np.array(labels), np.array(item_vector_value)],  # labels
-                         batch_size=batch_size, nb_epoch=10, verbose=0, shuffle=True)
+                         [np.array(labels_train), np.array(item_vector_value)],  # labels
+                         batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
+        print("Finish fit data")
+        print(model.summary())
+        print("After ", model.get_layer('user_embedding').get_weights())
+
         t2 = time()
 
         # Evaluation
         if epoch % verbose == 0:
             (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
             hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), hist.history['loss'][0]
+
             mf_embedding_norm = np.linalg.norm(model.get_layer('user_embedding').get_weights()) + np.linalg.norm(
                 model.get_layer('item_embedding').get_weights())
+
+            print(model.get_layer('user_embedding').get_weights())
+
             p_norm = np.linalg.norm(model.get_layer('prediction').get_weights()[0])
             print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = %.4f [%.1f s] MF_norm=%.1f, p_norm=%.2f'
                   % (epoch, t2 - t1, hr, ndcg, loss, time() - t2, mf_embedding_norm, p_norm))

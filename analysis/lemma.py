@@ -36,7 +36,10 @@ for line in f:
     types = remove_special_char(types).lower()
     types = ' '.join(types.split())
 
-    content = remove_special_char(args[3])
+    # 3 to use content
+    # 2 to use category
+    content = remove_special_char(args[2])
+
     x = content.lower().split()
     x = remove_stop_words(x)
     x = [stem(word) if not word.isdigit() else 'is_number' for word in x]
