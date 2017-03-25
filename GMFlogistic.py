@@ -7,6 +7,7 @@ import numpy as np
 import theano.tensor as T
 import keras
 import scipy
+import random
 from keras import backend as K
 from keras import initializers
 from keras.models import Sequential, Model, load_model, save_model
@@ -28,7 +29,7 @@ from analysis.read_movie import read_vectors
 
 
 def init_normal():
-    return initializers.RandomNormal(mean=0.0)
+    return initializers.RandomNormal(mean=0.5)
 
 
 def get_model(num_users, num_items, num_words, latent_dim, regs=[0, 0]):
@@ -161,13 +162,17 @@ if __name__ == '__main__':
 
     # ---------------- compile model ----------------------
     if learner.lower() == "adagrad":
-        model.compile(optimizer=Adagrad(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
+        model.compile(optimizer=Adagrad(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
+                      loss_weights=[1, 0.1])
     elif learner.lower() == "rmsprop":
-        model.compile(optimizer=RMSprop(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
+        model.compile(optimizer=RMSprop(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
+                      loss_weights=[1, 0.1])
     elif learner.lower() == "adam":
-        model.compile(optimizer=Adam(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
+        model.compile(optimizer=Adam(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
+                      loss_weights=[1, 0.1])
     else:
-        model.compile(optimizer=SGD(lr=learning_rate), loss='binary_crossentropy', loss_weights=[1, 0.5])
+        model.compile(optimizer=SGD(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
+                      loss_weights=[1, 0.1])
     # print(model.summary())
     # -----------------------------------------------------
 
@@ -212,7 +217,7 @@ if __name__ == '__main__':
 
     # for not crawl item
     item_vector_empty = dok_matrix((1, items_vectors.shape[1]))
-    item_vector_empty[0, 0] = 1
+    item_vector_empty[0, random.randint(0, items_vectors.shape[1])] = 1
 
     for item in range(0, items_vectors.shape[0]):
         if item in items_vectors.keys():
@@ -234,14 +239,18 @@ if __name__ == '__main__':
         else:
             item_vec = item_vector_empty
 
-        size = item_vec.nonzero()[1]
+        # add good item
+        size = len(item_vec.nonzero()[1])
         users_train.extend([user] * size)
         items_train.extend([item] * size)
-        labels_train.extend(labels[i] * size)
+        labels_train.extend([labels[i]] * size)
 
         t = cache_item[item]
         words_train.extend(t[0])
         item_vector_value.extend(t[1])
+
+        # add non word in item
+
 
         print(i, len(user_input), len(users_train), len(labels_train), len(items_train), len(words_train),
               len(item_vector_value))
@@ -253,26 +262,27 @@ if __name__ == '__main__':
         # Generate training instances
         print("Start fit data")
 
-        print(len(users_train))
+        # print("Before", model.get_layer('user_embedding').get_weights())
         hist = model.fit([np.array(users_train), np.array(items_train), np.array(words_train)],  # input
                          [np.array(labels_train), np.array(item_vector_value)],  # labels
                          batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
-
         print("Finish fit data")
+        # print("After", model.get_layer('user_embedding').get_weights())
 
         t2 = time()
 
         # Evaluation
         if epoch % verbose == 0:
             (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
-            hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
+            print(hist.history.keys())
+            hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), hist.history['loss'][0]
 
             mf_embedding_norm = np.linalg.norm(model.get_layer('user_embedding').get_weights()) + np.linalg.norm(
                 model.get_layer('item_embedding').get_weights())
 
             p_norm = np.linalg.norm(model.get_layer('prediction').get_weights()[0])
-            print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = [%.1f s] MF_norm=%.1f, p_norm=%.2f'
-                  % (epoch, t2 - t1, hr, ndcg, time() - t2, mf_embedding_norm, p_norm))
+            print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = %.4f [%.1f s] MF_norm=%.1f, p_norm=%.2f'
+                  % (epoch, t2 - t1, hr, ndcg, loss, time() - t2, mf_embedding_norm, p_norm))
             if hr > best_hr:
                 best_hr = hr
                 if hr > 0.6:

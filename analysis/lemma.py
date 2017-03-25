@@ -38,7 +38,7 @@ for line in f:
 
     # 3 to use content
     # 2 to use category
-    content = remove_special_char(args[2])
+    content = remove_special_char(args[3])
 
     x = content.lower().split()
     x = remove_stop_words(x)
