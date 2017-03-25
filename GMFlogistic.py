@@ -163,16 +163,16 @@ if __name__ == '__main__':
     # ---------------- compile model ----------------------
     if learner.lower() == "adagrad":
         model.compile(optimizer=Adagrad(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
-                      loss_weights=[1, 0.1])
+                      loss_weights=[1, 0.3])
     elif learner.lower() == "rmsprop":
         model.compile(optimizer=RMSprop(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
-                      loss_weights=[1, 0.1])
+                      loss_weights=[1, 0.3])
     elif learner.lower() == "adam":
         model.compile(optimizer=Adam(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
-                      loss_weights=[1, 0.1])
+                      loss_weights=[1, 0.3])
     else:
         model.compile(optimizer=SGD(lr=learning_rate), loss=['binary_crossentropy', 'binary_crossentropy'],
-                      loss_weights=[1, 0.1])
+                      loss_weights=[1, 0.3])
     # print(model.summary())
     # -----------------------------------------------------
 

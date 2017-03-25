@@ -8,4 +8,5 @@ a[2, 3] = 1
 a[2, 4] = 3
 
 print(a[2].nonzero()[1])
+print(a[2].nonzero())
 print(a[2].values())
