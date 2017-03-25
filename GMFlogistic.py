@@ -225,10 +225,20 @@ if __name__ == '__main__':
         else:
             item_vec = item_vector_empty
 
+        # non zero
         t1 = item_vec.nonzero()[1]
         t2 = item_vec.values()
 
-        cache_item[item] = [item_vec.nonzero()[1], item_vec.values()]
+        # zero
+        zero_indices = [x for x in range(0, item_vec.shape[1]) if x not in t1]
+        zero_indices = np.random.choice(zero_indices, len(t1))
+
+        values = ([1] * len(t1))
+        values.extend([0] * len(zero_indices))
+        cache_item[item] = [
+            np.concatenate([item_vec.nonzero()[1], zero_indices], 0),
+            values
+        ]
 
     for i in range(len(user_input)):
         user = user_input[i]
@@ -240,17 +250,15 @@ if __name__ == '__main__':
             item_vec = item_vector_empty
 
         # add good item
-        size = len(item_vec.nonzero()[1])
+        t = cache_item[item]
+
+        size = len(t[1])
         users_train.extend([user] * size)
         items_train.extend([item] * size)
         labels_train.extend([labels[i]] * size)
 
-        t = cache_item[item]
         words_train.extend(t[0])
         item_vector_value.extend(t[1])
-
-        # add non word in item
-
 
         print(i, len(user_input), len(users_train), len(labels_train), len(items_train), len(words_train),
               len(item_vector_value))
