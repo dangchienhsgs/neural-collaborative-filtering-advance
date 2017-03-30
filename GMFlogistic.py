@@ -3,29 +3,23 @@ Created on Aug 9, 2016
 
 @author: he8819197
 '''
-import numpy as np
-import theano.tensor as T
-import keras
-import scipy
 import random
-from keras import backend as K
+import sys
+from time import time
+
+import numpy as np
 from keras import initializers
-from keras.models import Sequential, Model, load_model, save_model
-from keras.layers.core import Dense, Lambda, Activation
-from keras.layers import Input, Dense, merge, Reshape, Merge, Flatten
+from keras.layers import Input, Dense, merge, Flatten
 from keras.layers.embeddings import Embedding
+from keras.models import Model
 from keras.optimizers import Adagrad, Adam, SGD, RMSprop
 from keras.regularizers import l2
-from Dataset import Dataset
-from evaluate import evaluate_model
-from time import time
-import multiprocessing as mp
-import sys
-import math
 from scipy.sparse import dok_matrix
 
+from Dataset import Dataset
 from analysis.create_vector_item import read_dictionaries
 from analysis.read_movie import read_vectors
+from evaluate import evaluate_model
 
 
 def init_normal():
@@ -73,7 +67,7 @@ def get_model(num_users, num_items, num_words, latent_dim, regs=[0, 0]):
     # Final prediction layer
     # prediction = Lambda(lambda x: K.sigmoid(K.sum(x)), output_shape=(1,))(predict_vector)
     prediction = Dense(1, activation='sigmoid', init='lecun_uniform', name='prediction')(predict_vector)
-    language_value = Dense(1, activation='sigmoid', init='lecun_uniform', name='language_value')(language_vector)
+    language_value = Dense(1, activation='relu', init='lecun_uniform', name='language_value')(language_vector)
 
     model = Model(inputs=[user_input, item_input, word_input],
                   outputs=[prediction, language_value])
@@ -137,7 +131,7 @@ if __name__ == '__main__':
         batch_size = int(sys.argv[9])
         verbose = int(sys.argv[10])
 
-    topK = 10
+    topK = 9
     evaluation_threads = 1  # mp.cpu_count()
     print(
         "GMF-logistic (%s) Settings: num_factors=%d, batch_size=%d, learning_rate=%.1e, num_neg=%d, weight_neg=%.2f, regs=%s, epochs=%d, verbose=%d"
