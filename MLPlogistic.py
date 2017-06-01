@@ -23,8 +23,8 @@ from time import time
 import sys
 
 import tensorflow as tf
-tf.python.control_flow_ops = tf
 
+tf.python.control_flow_ops = tf
 
 
 def init_normal(shape, name=None):
@@ -86,91 +86,92 @@ def get_train_instances(train, num_negatives, weight_negatives, user_weights):
 
 
 if __name__ == '__main__':
-    dataset_name = "ml-1m"
-    layers = eval("[16,8]")
-    reg_layers = eval("[0,0]")
-    num_negatives = 1  # number of negatives per positive instance
-    weight_negatives = 1
-    learner = "Adam"
-    learning_rate = 0.001
-    epochs = 100
-    batch_size = 256
-    verbose = 1
+    for topK in range(8, 10):
+        dataset_name = "ml-1m"
+        layers = eval("[16,8]")
+        reg_layers = eval("[0,0]")
+        num_negatives = 1  # number of negatives per positive instance
+        weight_negatives = 1
+        learner = "adam"
+        learning_rate = 0.001
+        epochs = 100
+        batch_size = 256
+        verbose = 1
 
-    if (len(sys.argv) > 3):
-        dataset_name = sys.argv[1]
-        layers = eval(sys.argv[2])
-        reg_layers = eval(sys.argv[3])
-        num_negatives = int(sys.argv[4])
-        weight_negatives = float(sys.argv[5])
-        learner = sys.argv[6]
-        learning_rate = float(sys.argv[7])
-        epochs = int(sys.argv[8])
-        batch_size = int(sys.argv[9])
-        verbose = int(sys.argv[10])
+        if (len(sys.argv) > 3):
+            dataset_name = sys.argv[1]
+            layers = eval(sys.argv[2])
+            reg_layers = eval(sys.argv[3])
+            num_negatives = int(sys.argv[4])
+            weight_negatives = float(sys.argv[5])
+            learner = sys.argv[6]
+            learning_rate = float(sys.argv[7])
+            epochs = int(sys.argv[8])
+            batch_size = int(sys.argv[9])
+            verbose = int(sys.argv[10])
 
-    topK = 10
-    evaluation_threads = 1  # mp.cpu_count()
-    print(
-        "MLP-logistic(%s) Settings: layers=%s, reg_layers=%s, num_neg=%d, weight_neg=%.2f, learning_rate=%.1e, epochs=%d, batch_size=%d, verbose=%d"
-        % (learner, layers, reg_layers, num_negatives, weight_negatives, learning_rate, epochs, batch_size, verbose))
+        # topK = 10
+        evaluation_threads = 1  # mp.cpu_count()
+        print(
+            "MLP-logistic(%s) Settings: layers=%s, reg_layers=%s, num_neg=%d, weight_neg=%.2f, learning_rate=%.1e, epochs=%d, batch_size=%d, verbose=%d, topK=%d"
+            % (learner, layers, reg_layers, num_negatives, weight_negatives, learning_rate, epochs, batch_size, verbose, topK))
 
-    # Loading data
-    t1 = time()
-    dataset = Dataset("data/" + dataset_name)
-    train, testRatings, testNegatives = dataset.trainMatrix, dataset.testRatings, dataset.testNegatives
-    num_users, num_items = train.shape
-    total_weight_per_user = train.nnz / float(num_users)
-    train_csr, user_weights = train.tocsr(), []
-    for u in range(num_users):
-        # user_weights.append(total_weight_per_user / float(train_csr.getrow(u).nnz))
-        user_weights.append(1)
-    print("Load data done [%.1f s]. #user=%d, #item=%d, #train=%d, #test=%d"
-          % (time() - t1, num_users, num_items, train.nnz, len(testRatings)))
-
-    # Build model
-    model = get_model(num_users, num_items, layers, reg_layers)
-    if learner.lower() == "adagrad":
-        model.compile(optimizer=Adagrad(lr=learning_rate), loss='binary_crossentropy')
-    elif learner.lower() == "rmsprop":
-        model.compile(optimizer=RMSprop(lr=learning_rate), loss='binary_crossentropy')
-    elif learner.lower() == "adam":
-        model.compile(optimizer=Adam(lr=learning_rate), loss='binary_crossentropy')
-    else:
-        model.compile(optimizer=SGD(lr=learning_rate), loss='binary_crossentropy')
-
-        # Check Init performance
-    (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
-    hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
-    print('Init: HR = %.4f, NDCG = %.4f' % (hr, ndcg))
-
-    # Train model
-    loss_pre = sys.float_info.max
-    best_hr, best_ndcg = 0, 0
-    for epoch in range(epochs):
+        # Loading data
         t1 = time()
-        # Generate training instances
-        user_input, item_input, labels, weights = get_train_instances(train, num_negatives, weight_negatives,
-                                                                      user_weights)
+        dataset = Dataset("data/" + dataset_name)
+        train, testRatings, testNegatives = dataset.trainMatrix, dataset.testRatings, dataset.testNegatives
+        num_users, num_items = train.shape
+        total_weight_per_user = train.nnz / float(num_users)
+        train_csr, user_weights = train.tocsr(), []
+        for u in range(num_users):
+            # user_weights.append(total_weight_per_user / float(train_csr.getrow(u).nnz))
+            user_weights.append(1)
+        print("Load data done [%.1f s]. #user=%d, #item=%d, #train=%d, #test=%d"
+              % (time() - t1, num_users, num_items, train.nnz, len(testRatings)))
 
-        # Training        
-        hist = model.fit([np.array(user_input), np.array(item_input)],  # input
-                         np.array(labels),  # labels
-                         batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
-        t2 = time()
+        # Build model
+        model = get_model(num_users, num_items, layers, reg_layers)
+        if learner.lower() == "adagrad":
+            model.compile(optimizer=Adagrad(lr=learning_rate), loss='binary_crossentropy')
+        elif learner.lower() == "rmsprop":
+            model.compile(optimizer=RMSprop(lr=learning_rate), loss='binary_crossentropy')
+        elif learner.lower() == "adam":
+            model.compile(optimizer=Adam(lr=learning_rate), loss='binary_crossentropy')
+        else:
+            model.compile(optimizer=SGD(lr=learning_rate), loss='binary_crossentropy')
 
-        # Evaluation
-        if epoch % verbose == 0:
-            (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
-            hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), hist.history['loss'][0]
-            print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = %.4f [%.1f s]'
-                  % (epoch, t2 - t1, hr, ndcg, loss, time() - t2))
-            if hr > best_hr:
-                best_hr = hr
-                if hr > 0.6:
-                    model.save_weights('pretrain/%s_MLP_%d_neg_%d_hr_%.4f_ndcg_%.4f.h5' % (
-                        dataset_name, layers[-1], num_negatives, hr, ndcg), overwrite=True)
-            if ndcg > best_ndcg:
-                best_ndcg = ndcg
+            # Check Init performance
+        (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
+        hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
+        print('Init: HR = %.4f, NDCG = %.4f' % (hr, ndcg))
 
-    print("End. best HR = %.4f, best NDCG = %.4f" % (best_hr, best_ndcg))
+        # Train model
+        loss_pre = sys.float_info.max
+        best_hr, best_ndcg = 0, 0
+        for epoch in range(epochs):
+            t1 = time()
+            # Generate training instances
+            user_input, item_input, labels, weights = get_train_instances(train, num_negatives, weight_negatives,
+                                                                          user_weights)
+
+            # Training
+            hist = model.fit([np.array(user_input), np.array(item_input)],  # input
+                             np.array(labels),  # labels
+                             batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
+            t2 = time()
+
+            # Evaluation
+            if epoch % verbose == 0:
+                (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
+                hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), hist.history['loss'][0]
+                print('Iteration %d [%.1f s]: HR = %.4f, NDCG = %.4f, loss = %.4f [%.1f s]'
+                      % (epoch, t2 - t1, hr, ndcg, loss, time() - t2))
+                if hr > best_hr:
+                    best_hr = hr
+                    if hr > 0.6:
+                        model.save_weights('pretrain/%s/top_%d_%s_MLP_%d_neg_%d_hr_%.4f_ndcg_%.4f.h5' % (
+                            learner.lower(), topK, dataset_name, layers[-1], num_negatives, hr, ndcg), overwrite=True)
+                if ndcg > best_ndcg:
+                    best_ndcg = ndcg
+
+        print("End. best HR = %.4f, best NDCG = %.4f" % (best_hr, best_ndcg))

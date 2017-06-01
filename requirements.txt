@@ -2,7 +2,6 @@ apturl==0.5.2
 beautifulsoup4==4.4.1
 Brlapi==0.6.4
 chardet==2.3.0
-chrome-gnome-shell==0.0.0
 command-not-found==0.3
 cycler==0.9.0
 decorator==4.0.6
@@ -50,8 +49,6 @@ system-service==0.3
 tables==3.2.2
 tensorflow-gpu==0.12.1
 Theano==0.9.0
-typecatcher==0.2
-ubuntu-drivers-common==0.0.0
 ufw==0.35
 unattended-upgrades==0.1
 urllib3==1.13.1
